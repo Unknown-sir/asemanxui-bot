@@ -30,18 +30,18 @@ chmod -R 755 /var/www/html/asemanxui-bot/
 # نصب پنل
 RANDOM_CODE=$(LC_CTYPE=C tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 40)
 mkdir "/var/www/html/asemanpanel${RANDOM_CODE}"
-wget -O /var/www/html/asemanpanel.zip https://github.com/Unknown-sir/asemanxui-bot/releases/download/1.0.0/asemanpanel.zip
+wget -O "/var/www/html/asemanpanel${RANDOM_CODE}/asemanpanel.zip" https://github.com/Unknown-sir/asemanxui-bot/releases/download/1.0.0/asemanpanel.zip
 if [ $? -ne 0 ]; then
     echo -e "\n\033[91mFailed to download panel!\033[0m\n"
     exit 1
 fi
-mv /var/www/html/asemanpanel.zip "/var/www/html/asemanpanel${RANDOM_CODE}/"
 cd "/var/www/html/asemanpanel${RANDOM_CODE}/" && unzip asemanpanel.zip && rm asemanpanel.zip
 chown -R www-data:www-data "/var/www/html/asemanpanel${RANDOM_CODE}/"
 chmod -R 755 "/var/www/html/asemanpanel${RANDOM_CODE}/"
 
 # دریافت اطلاعات از کاربر
-read -p "Enter the domain: " domainname
+echo -e "\n\e[92mSetup configuration...\033[0m\n"
+read -p "Enter the domain (e.g., yourdomain.com): " domainname
 if [ -z "$domainname" ]; then
     echo -e "\n\033[91mDomain required!\033[0m\n"
     exit 1
@@ -60,23 +60,32 @@ if [ -z "$chatId" ]; then
 fi
 
 # تنظیم فایل baseInfo.php
-echo -e "<?php\nerror_reporting(0);\n\$botToken = '$botToken';\n\$dbUserName = 'aseman_user';\n\$dbPassword = 'randompass';\n\$dbName = 'aseman_db';\n\$botUrl = 'https://$domainname/asemanxui-bot/';\n\$admin = '$chatId';\n?>" > /var/www/html/asemanxui-bot/config/baseInfo.php
+cat > /var/www/html/asemanxui-bot/config/baseInfo.php <<EOL
+<?php
+error_reporting(0);
+\$botToken = '$botToken';
+\$dbUserName = 'aseman_user';
+\$dbPassword = 'randompass';
+\$dbName = 'aseman_db';
+\$botUrl = 'https://$domainname/asemanxui-bot/';
+\$admin = '$chatId';
+?>
+EOL
 
 # تنظیم دیتابیس
-mysql -e "CREATE DATABASE aseman_db; CREATE USER 'aseman_user'@'localhost' IDENTIFIED BY 'randompass'; GRANT ALL PRIVILEGES ON aseman_db.* TO 'aseman_user'@'localhost'; FLUSH PRIVILEGES;"
-if [ $? -ne 0 ]; then
-    echo -e "\n\033[91mFailed to setup database!\033[0m\n"
-    exit 1
-fi
-mysql aseman_db < /var/www/html/asemanxui-bot/database/schema.sql
+mysql -e "CREATE DATABASE aseman_db;" || { echo -e "\n\033[91mFailed to create database!\033[0m\n"; exit 1; }
+mysql -e "CREATE USER 'aseman_user'@'localhost' IDENTIFIED BY 'randompass';" || { echo -e "\n\033[91mFailed to create user!\033[0m\n"; exit 1; }
+mysql -e "GRANT ALL PRIVILEGES ON aseman_db.* TO 'aseman_user'@'localhost';" || { echo -e "\n\033[91mFailed to grant privileges!\033[0m\n"; exit 1; }
+mysql -e "FLUSH PRIVILEGES;"
+mysql aseman_db < /var/www/html/asemanxui-bot/database/schema.sql || { echo -e "\n\033[91mFailed to import schema!\033[0m\n"; exit 1; }
 
 # تنظیم کرون‌جاب‌ها
-(crontab -l 2>/dev/null; echo "* * * * * curl https://$domainname/asemanxui-bot/settings/message.php >/dev/null 2>&1") | crontab -
-(crontab -l 2>/dev/null; echo "* * * * * curl https://$domainname/asemanxui-bot/settings/rewardReport.php >/dev/null 2>&1") | crontab -
-(crontab -l 2>/dev/null; echo "* * * * * curl https://$domainname/asemanxui-bot/settings/warnusers.php >/dev/null 2>&1") | crontab -
-(crontab -l 2>/dev/null; echo "* * * * * curl https://$domainname/asemanxui-bot/settings/gift2all.php >/dev/null 2>&1") | crontab -
-(crontab -l 2>/dev/null; echo "*/3 * * * * curl https://$domainname/asemanxui-bot/settings/tronChecker.php >/dev/null 2>&1") | crontab -
-(crontab -l 2>/dev/null; echo "* * * * * curl https://$domainname/asemanpanel${RANDOM_CODE}/backupnutif.php >/dev/null 2>&1") | crontab -
+crontab -l 2>/dev/null | { cat; echo "* * * * * curl https://$domainname/asemanxui-bot/settings/message.php >/dev/null 2>&1"; } | crontab -
+crontab -l 2>/dev/null | { cat; echo "* * * * * curl https://$domainname/asemanxui-bot/settings/rewardReport.php >/dev/null 2>&1"; } | crontab -
+crontab -l 2>/dev/null | { cat; echo "* * * * * curl https://$domainname/asemanxui-bot/settings/warnusers.php >/dev/null 2>&1"; } | crontab -
+crontab -l 2>/dev/null | { cat; echo "* * * * * curl https://$domainname/asemanxui-bot/settings/gift2all.php >/dev/null 2>&1"; } | crontab -
+crontab -l 2>/dev/null | { cat; echo "*/3 * * * * curl https://$domainname/asemanxui-bot/settings/tronChecker.php >/dev/null 2>&1"; } | crontab -
+crontab -l 2>/dev/null | { cat; echo "* * * * * curl https://$domainname/asemanpanel${RANDOM_CODE}/backupnutif.php >/dev/null 2>&1"; } | crontab -
 
 # تنظیم وب‌هوک و ارسال پیام موفقیت
 curl -F "url=https://$domainname/asemanxui-bot/index.php" "https://api.telegram.org/bot$botToken/setWebhook"
